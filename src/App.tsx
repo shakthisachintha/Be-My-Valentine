@@ -6,6 +6,7 @@ import {
   StarTrail,
   SuccessScreen,
   WarningScreen,
+  MobileWarning,
 } from "./components";
 import type { Position, TrailParticle } from "./types";
 import {
@@ -184,6 +185,7 @@ function App() {
       className="flex flex-col items-center justify-center min-h-screen bg-linear-to-br from-pink-200 via-red-200 to-pink-300 overflow-hidden relative"
       onMouseMove={handleMouseMove}
     >
+      <MobileWarning />
       <ResetButton onClick={handleReset} variant="light" />
       <StarTrail trail={trail} />
       {showWarning && <WarningScreen />}

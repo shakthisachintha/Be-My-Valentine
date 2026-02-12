@@ -1,7 +1,9 @@
 # Copilot Instructions for my-app
 
 ## Project Overview
-React 19 + TypeScript + Vite 7 application with Tailwind CSS 4 and Motion for animations. Uses modern ESLint flat config and strict TypeScript settings.
+**Valentine's Day Interactive Web App** - "Will You Be My Valentine?"
+
+A playful single-page application where the "No" button runs away from the cursor with a beautiful star trail effect. After multiple attempts to click "No", a warning screen appears. Built with React 19, TypeScript, Vite 7, Tailwind CSS 4, and Motion for animations.
 
 ## Tech Stack & Key Dependencies
 - **Build System**: Vite 7 with Fast Refresh via `@vitejs/plugin-react`
@@ -57,15 +59,31 @@ The `build` script runs **TypeScript compilation first** (`tsc -b`) before Vite 
 - React Refresh plugin ensures Fast Refresh works correctly (warns on component export patterns)
 - **Type-aware linting is NOT enabled** by default (would require `parserOptions.project`)
 
-## Project-Specific Patterns
+## Project-Specific Features
+
+### Core Functionality
+- **Button Movement Logic**: "No" button detects cursor proximity and moves away using throttled mouse events
+- **Star Trail System**: Creates multiple animated star particles as the button moves
+- **Warning System**: Tracks attempt count and displays warning screen after 6 attempts
+- **Spring Animations**: Uses Motion's spring physics for natural button movement
+
+### Key Components
+- `App.tsx`: Main component with button logic, mouse tracking, and state management
+- `StarTrail.tsx`: Renders animated star particles with fade-out effects
+- `WarningScreen.tsx`: Modal overlay with cat-gun image and warning message
+- `SuccessScreen.tsx`: Displayed when user clicks "Yes"
+- `ResetButton.tsx`: Utility button to restart the experience
 
 ### Animation Library
 - Use `motion` package (not Framer Motion) for animations
 - Import from `motion` directly: `import { motion } from 'motion'`
+- Spring animations configured in `constants/index.ts`
 
 ### File Organization
-- Components in `src/` (currently flat structure)
-- Assets in `src/assets/`
+- Components in `src/components/` with barrel exports via `index.ts`
+- Constants in `src/constants/index.ts` (button behavior, thresholds, animations)
+- Types in `src/types/index.ts` (Position, TrailParticle)
+- Public assets in `/public/` (cat-gun.png, love.png)
 - Global styles in `src/index.css` and `src/App.css`
 
 ## Important Notes
@@ -99,3 +117,32 @@ Uses `moduleResolution: "bundler"` which allows:
 - Use browser DevTools with Vite's source maps
 - React DevTools supports React 19
 - Check terminal for TypeScript/ESLint errors during dev
+
+## Deployment
+
+### Recommended: Vercel
+- Zero configuration required
+- Auto-detects Vite build settings
+- Free tier with unlimited bandwidth
+- Automatic HTTPS and global CDN
+
+**Deploy Command:**
+```bash
+vercel
+```
+
+**Build Configuration (auto-detected):**
+- Build Command: `npm run build`
+- Output Directory: `dist`
+- Install Command: `npm install`
+
+### Alternative Options
+- **Netlify**: Drag `dist` folder or use CLI
+- **GitHub Pages**: Use `gh-pages` package
+- **Cloudflare Pages**: Use `wrangler` CLI
+
+### Important for Deployment
+- All assets in `/public/` are automatically copied to build
+- Ensure `cat-gun.png` and `love.png` are present in `/public/`
+- Build outputs to `dist/` directory
+- TypeScript compilation runs before build (catches errors early)
