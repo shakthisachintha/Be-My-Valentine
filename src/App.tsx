@@ -1,6 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "motion/react";
-import { ResetButton, StarTrail, SuccessScreen } from "./components";
+import { throttle } from "lodash";
+import {
+  ResetButton,
+  StarTrail,
+  SuccessScreen,
+  WarningScreen,
+} from "./components";
 import type { Position, TrailParticle } from "./types";
 import {
   CURSOR_DETECTION_DISTANCE,
@@ -9,6 +15,9 @@ import {
   TRAIL_CLEANUP_DELAY,
   EDGE_THRESHOLD,
   NO_BUTTON_SPRING,
+  BUTTON_MOVE_COOLDOWN,
+  STARS_PER_MOVE,
+  WARNING_THRESHOLD,
 } from "./constants";
 import "./App.css";
 
@@ -19,6 +28,8 @@ function App() {
     y: 0,
   });
   const [trail, setTrail] = useState<TrailParticle[]>([]);
+  const [noAttempts, setNoAttempts] = useState(0);
+  const [showWarning, setShowWarning] = useState(false);
   const noButtonRef = useRef<HTMLButtonElement>(null);
   const trailIdRef = useRef(0);
 
@@ -31,59 +42,125 @@ function App() {
     setAccepted(false);
     setNoButtonPosition({ x: 0, y: 0 });
     setTrail([]);
+    setNoAttempts(0);
+    setShowWarning(false);
+  }, []);
+
+  // Create throttled function using useRef to avoid re-creating on every render
+  // Throttle ensures the function runs at most once per cooldown period
+  const throttledMoveButtonRef = useRef(
+    throttle(
+      (
+        clientX: number,
+        clientY: number,
+        buttonRef: React.RefObject<HTMLButtonElement | null>,
+        currentAccepted: boolean,
+        currentPosition: Position,
+        setPosition: (pos: Position) => void,
+        addTrail: (particle: TrailParticle) => void,
+      ) => {
+        if (!buttonRef.current || currentAccepted) return;
+
+        const button = buttonRef.current;
+        const rect = button.getBoundingClientRect();
+        const buttonCenterX = rect.left + rect.width / 2;
+        const buttonCenterY = rect.top + rect.height / 2;
+
+        const distance = Math.sqrt(
+          Math.pow(clientX - buttonCenterX, 2) +
+            Math.pow(clientY - buttonCenterY, 2),
+        );
+
+        // If cursor is within detection distance of the button, move it away
+        if (distance < CURSOR_DETECTION_DISTANCE) {
+          const angle = Math.atan2(
+            clientY - buttonCenterY,
+            clientX - buttonCenterX,
+          );
+
+          // Calculate new position (move away from cursor)
+          let newX = currentPosition.x - Math.cos(angle) * BUTTON_MOVE_DISTANCE;
+          let newY = currentPosition.y - Math.sin(angle) * BUTTON_MOVE_DISTANCE;
+
+          // Keep button within viewport bounds with padding
+          const maxX = (window.innerWidth - rect.width) / 2 - VIEWPORT_PADDING;
+          const maxY =
+            (window.innerHeight - rect.height) / 2 - VIEWPORT_PADDING;
+
+          newX = Math.max(-maxX, Math.min(maxX, newX));
+          newY = Math.max(-maxY, Math.min(maxY, newY));
+
+          // If button hits the edge, bounce it to a random visible position
+          if (
+            Math.abs(newX) >= maxX - EDGE_THRESHOLD ||
+            Math.abs(newY) >= maxY - EDGE_THRESHOLD
+          ) {
+            newX = (Math.random() - 0.5) * maxX * 1.5;
+            newY = (Math.random() - 0.5) * maxY * 1.5;
+          }
+
+          setPosition({ x: newX, y: newY });
+
+          // Add multiple stars to trail for better visibility
+          for (let i = 0; i < STARS_PER_MOVE; i++) {
+            // Add slight randomness to star positions for natural look
+            const offsetX = (Math.random() - 0.5) * 30;
+            const offsetY = (Math.random() - 0.5) * 30;
+            addTrail({
+              x: buttonCenterX + offsetX,
+              y: buttonCenterY + offsetY,
+              id: trailIdRef.current++,
+            });
+          }
+        }
+      },
+      BUTTON_MOVE_COOLDOWN,
+      {
+        leading: true,
+        trailing: true,
+      },
+    ),
+  );
+
+  // Check for warning threshold
+  useEffect(() => {
+    if (noAttempts >= WARNING_THRESHOLD) {
+      setShowWarning(true);
+      const timer = setTimeout(() => {
+        setShowWarning(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [noAttempts]);
+
+  // Cleanup throttle on unmount
+  useEffect(() => {
+    const throttledFn = throttledMoveButtonRef.current;
+    return () => {
+      throttledFn.cancel();
+    };
   }, []);
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!noButtonRef.current || accepted) return;
-
-      const button = noButtonRef.current;
-      const rect = button.getBoundingClientRect();
-      const buttonCenterX = rect.left + rect.width / 2;
-      const buttonCenterY = rect.top + rect.height / 2;
-
-      const distance = Math.sqrt(
-        Math.pow(e.clientX - buttonCenterX, 2) +
-          Math.pow(e.clientY - buttonCenterY, 2),
+      const prevPosition = { ...noButtonPosition };
+      throttledMoveButtonRef.current(
+        e.clientX,
+        e.clientY,
+        noButtonRef,
+        accepted,
+        noButtonPosition,
+        (pos: Position) => {
+          // Check if position actually changed
+          if (pos.x !== prevPosition.x || pos.y !== prevPosition.y) {
+            setNoAttempts((prev) => prev + 1);
+          }
+          setNoButtonPosition(pos);
+        },
+        (particle: TrailParticle) => setTrail((prev) => [...prev, particle]),
       );
-
-      // If cursor is within detection distance of the button, move it away
-      if (distance < CURSOR_DETECTION_DISTANCE) {
-        const angle = Math.atan2(
-          e.clientY - buttonCenterY,
-          e.clientX - buttonCenterX,
-        );
-
-        // Calculate new position (move away from cursor)
-        let newX = noButtonPosition.x - Math.cos(angle) * BUTTON_MOVE_DISTANCE;
-        let newY = noButtonPosition.y - Math.sin(angle) * BUTTON_MOVE_DISTANCE;
-
-        // Keep button within viewport bounds with padding
-        const maxX = (window.innerWidth - rect.width) / 2 - VIEWPORT_PADDING;
-        const maxY = (window.innerHeight - rect.height) / 2 - VIEWPORT_PADDING;
-
-        newX = Math.max(-maxX, Math.min(maxX, newX));
-        newY = Math.max(-maxY, Math.min(maxY, newY));
-
-        // If button hits the edge, bounce it to a random visible position
-        if (
-          Math.abs(newX) >= maxX - EDGE_THRESHOLD ||
-          Math.abs(newY) >= maxY - EDGE_THRESHOLD
-        ) {
-          newX = (Math.random() - 0.5) * maxX * 1.5;
-          newY = (Math.random() - 0.5) * maxY * 1.5;
-        }
-
-        setNoButtonPosition({ x: newX, y: newY });
-
-        // Add star trail
-        setTrail((prev) => [
-          ...prev,
-          { x: buttonCenterX, y: buttonCenterY, id: trailIdRef.current++ },
-        ]);
-      }
     },
-    [accepted, noButtonPosition.x, noButtonPosition.y],
+    [accepted, noButtonPosition],
   );
 
   // Clean up old trail particles
@@ -109,6 +186,7 @@ function App() {
     >
       <ResetButton onClick={handleReset} variant="light" />
       <StarTrail trail={trail} />
+      {showWarning && <WarningScreen />}
 
       <motion.div
         initial={{ opacity: 0, y: -50 }}
