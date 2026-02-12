@@ -117,7 +117,7 @@ function App() {
       },
       BUTTON_MOVE_COOLDOWN,
       {
-        leading: true,
+        leading: false,
         trailing: true,
       },
     ),
